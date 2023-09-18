@@ -2,6 +2,12 @@ package edu.jsu.mcis.cs310;
 
 import com.github.cliftonlabs.json_simple.*;
 import com.opencsv.*;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 public class Converter {
     
@@ -77,8 +83,70 @@ public class Converter {
         String result = "{}"; // default return value; replace later!
         
         try {
-        
-            // INSERT YOUR CODE HERE
+            // Starting Vars
+            List<String[]> full = new ArrayList<>();
+            List<String> prodNumList = new ArrayList<>();
+            LinkedHashMap<String, Object> finalObject = new LinkedHashMap<>();
+            JsonArray data = new JsonArray();
+            
+            // Convert string into list of strings
+            CSVReader reader = new CSVReader(new StringReader(csvString));
+            full = reader.readAll();
+            
+            // Iterate through the List
+            Iterator<String[]> iterator = full.iterator();
+            
+            // Convert
+            if (iterator.hasNext()) {
+                String[] headings = iterator.next();
+                
+                while (iterator.hasNext()) {
+                    String[] csvRecord = iterator.next();
+                    LinkedHashMap<String, String> jsonRecord = new LinkedHashMap<>();
+                    
+                    for (int i = 1; i < headings.length; ++i) {
+                       jsonRecord.put(headings[i], csvRecord[i]);
+                    }
+                    prodNumList.add(csvRecord[0]);
+                    data.add(jsonRecord);
+                }
+            }
+            
+            // Adding the data into a JsonObject 
+            List<Object[]> dataList = new ArrayList<>();
+            List<String> columList = new ArrayList<>();
+            
+            // Config column list
+            columList.add("ProdNum");
+            for (Object column : data.getMap(0).keySet()) {
+                columList.add(column.toString());
+            }
+            
+            // Config data list
+            for (int i = 0; i < data.size(); i++) {
+                dataList.add(data.getMap(i).values().toArray());
+            }
+            
+            for (Object[] dataObject : dataList) {
+                for (int i = 0; i < dataObject.length; i++) {
+                    try {
+                        if (dataObject[i] instanceof String string) {
+                            dataObject[i] = Integer.valueOf(string);
+                        }
+                    } catch (NumberFormatException e) {
+                        //ignore
+                    }
+                }
+            }
+            
+            // Put all inside json object
+            finalObject.put("ProdNums", prodNumList);
+            finalObject.putIfAbsent("ColHeadings", columList);
+            finalObject.put("Data", dataList);
+            
+            // Serialize and subm
+            result = Jsoner.serialize(finalObject);
+            
             
         }
         catch (Exception e) {
@@ -95,9 +163,42 @@ public class Converter {
         String result = ""; // default return value; replace later!
         
         try {
+            // Vars
+            JsonObject jsonObject = Jsoner.deserialize(jsonString, new JsonObject());
+            JsonArray prodNums = (JsonArray) jsonObject.get("ProdNums");
+            JsonArray headings = (JsonArray) jsonObject.get("ColHeadings");
+            JsonArray data = (JsonArray) jsonObject.get("Data");
             
-            // INSERT YOUR CODE HERE
+            StringWriter writer = new StringWriter();
+            CSVWriter csvWriter = new CSVWriter(writer, ',', '"', '\\', "\n");
             
+            // Write column headings to CSV
+            String[] columnHeadingsArray = new String[headings.size()];
+            for (int i = 0; i < headings.size(); i++) {
+                columnHeadingsArray[i] = headings.getString(i);
+            }
+            csvWriter.writeNext(columnHeadingsArray);
+
+            // Write data rows to CSV
+            for (int i = 0; i < data.size(); i++) {
+                JsonArray rowData = (JsonArray) data.get(i);
+                String[] rowDataArray = new String[columnHeadingsArray.length];
+                rowDataArray[0] = prodNums.getString(i);
+                for (int j = 0; j < rowData.size(); j++) {
+                    if (j == 2 && rowData.getString(j).chars().count() == 1) {
+                        rowDataArray[j+1] = "0" + rowData.getString(j);
+                    }
+                    else {
+                        rowDataArray[j+1] = rowData.getString(j);
+                    }
+                }
+                csvWriter.writeNext(rowDataArray);
+            }
+            
+            // Close the CSV writer and submit
+            csvWriter.close();
+            
+            result = writer.toString();
         }
         catch (Exception e) {
             e.printStackTrace();
